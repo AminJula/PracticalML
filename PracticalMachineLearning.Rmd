@@ -1,0 +1,140 @@
+---
+title: "PracticalMachineLearning"
+author: "Amin Jula"
+date: "February 27, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(caret)
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+The scripts have been solely produced, tested and executed on Apple MacBook Pro, R X64 3.3.2 and RStudio Version 1.0.153.
+
+## Course Project Assignment
+
+This is the Course Project Assignment of Practical machine Learning. In this project we have a large amount of data collected from devices such as Jawbone Up, Nike FuelBand, and Fitbit to see if the exercise has been done in a right manner.  At the end of this assignment we are going to build an accurate predictive model to be used for testing new data.
+
+# Data
+
+The training data for this project are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Methodology
+
+1. To read train and test data form given links.
+2. To check which columns of training data have many missing values such that make them unuseful. The unuseful columns will be removed from training data.
+3. To come up with a list of high-correlated columns to be used in the model.
+4. To build several predictive models using taught algorithms.
+5. To compare obtained accuracy from the applied algorithms to decide which algorithm provides the best results.
+
+## Reading data
+
+```{r ReadData}
+# Reading data
+tr = read.csv("C:\\Users\\user_adax\\Downloads\\pml-training.csv")
+ts = read.csv("C:\\Users\\user_adax\\Downloads\\pml-testing.csv")
+
+# To make sure no error is in the data wouldbe used in the model
+isNum = sapply(tr, is.numeric)
+tr = cbind(tr[, isNum], tr['classe'])
+```
+
+## Removing sparse columns
+
+```{r HandleSparseCols}
+# To omit columns having missing values
+tr = tr[,sapply(tr, function(x){ifelse(sum(is.na(x)) == 0, TRUE, FALSE)})]
+```
+
+## To get the list of eligible columns for modeling
+
+```{r corrValStudy}
+# To find eligible columns to be utilized inn building models
+classe2 = ifelse(tr$classe=='A', -2, ifelse(tr$classe=='B', -1, ifelse(tr$classe=='C', 0, ifelse(tr$classe=='D', 1, 2))))
+tr$classe2 = classe2
+
+HighcorrVal = findCorrelation(cor(tr[,-57]), cutoff = 0.75)
+finalTrainData = tr[HighcorrVal]
+```
+
+## To build several models
+
+In this section a few well-known Machine Learning (ML) algorithms are used to build the required pridictive models. To take advantages of cross-validation, a 10-fold cros-validation has been defind and utilized in calling ML algorithms. To make sure we get the highest accuracy but using the minimum possible number of variables Principal Component Analysis (PCA) is also used. 
+
+```{r buildModel}
+# To set-up train control
+trCtrl <- trainControl(method = "cv", number = 10, verboseIter=FALSE , preProcOptions="pca", allowParallel=TRUE)
+
+# To build Random forest Model
+modRF = train(classe ~ ., data = finalTrainData, method = "rf", trControl = trCtrl)
+
+# To build Decision tree Model
+modDT = train(classe ~ ., data = finalTrainData, method = "rpart", trControl = trCtrl)
+
+# To build Decision tree Model
+modLB = train(classe ~ ., data = finalTrainData, method = "LogitBoost", trControl = trCtrl)
+
+# To build Decision tree Model
+modSVMRad = train(classe ~ ., data = finalTrainData, method = "svmRadial", trControl = trCtrl)
+```
+
+## Obtaining results of the models
+
+### 1. Confusion Matrix of Random Forest Model
+```{r RFResult}
+# To obtain RF results
+confusionMatrix(modRF)
+```
+### 2. Confusion Matrix of Decision Tree Model
+```{r DTResults}
+# To obtain LB results
+confusionMatrix(modDT)
+```
+### 3. Confusion Matrix of Logit Boost Model
+```{r LBResults}
+# To obtain LB results
+confusionMatrix(modLB)
+```
+
+### 4. Confusion Matrix of SVM-Radial Model
+```{r SVMRadResults}
+# # To build Ensemble Model
+confusionMatrix(modSVMRad)
+```
+
+## Discussion and Model Selection
+
+```{r compRes}
+# To Compare Results
+Models = c("Randon_Forest", "Decision_Tree", "Logit_Boost", "SVM_Radial")
+Accs = c()
+Results = list(Randon_Forest=modRF, Decision_Tree = modDT, Logit_Boost=modLB, SVM_Radial=modSVMRad)
+for (res in Results){
+  Accs = c(Accs, paste(round(100*max(res$results$Accuracy),2), "%", sep = " "))
+}
+Accs = data.frame(Model = Models, Accuracy = Accs)
+
+knitr::kable(Accs)
+```
+
+The collected results demonstrate that the best performance has been provided by Random Forest. With a significant difference SVM-Radial and Logit Boost showed an acceptable result while Decision Tree was unsuccessful in showing a good accuracy.
+
+## Predicting on Testing Data
+
+In this section we use the best built model (Random Forest) to predict 20 different test cases.
+
+```{r TestDataResults}
+# To predict for test data
+predict(modRF, ts)
+```
